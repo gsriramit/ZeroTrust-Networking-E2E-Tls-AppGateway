@@ -4,12 +4,12 @@
 $subscriptionName = "Visual Studio Enterprise Subscription"
 $resourcegroupName = "rg-zerotrust-appgw-tls"
 $deploymentLocation = "West US"
-$hostName ="www.contoso.com"
+$hostName ="contoso.com"
 # Connect to an Azure Account
-Connect-AzAccount
+Connect-AzAccount -TenantId d787514b-d3f2-45ff-9bf1-971fb473fc85
 
 #Select the subscription to use for this scenario.
-Select-Azsubscription -SubscriptionName $subscriptionName
+Set-AzContext -Subscription $subscriptionName -Tenant d787514b-d3f2-45ff-9bf1-971fb473fc85
 #Create a resource group. (Skip this step if you're using an existing resource group.)
 New-AzResourceGroup -Name $resourcegroupName -Location $deploymentLocation
 
@@ -29,7 +29,9 @@ $gwSubnet = Get-AzVirtualNetworkSubnetConfig -Name 'appgwsubnet' -VirtualNetwork
 $nicSubnet = Get-AzVirtualNetworkSubnetConfig -Name 'appsubnet' -VirtualNetwork $vnet
 
 #Create a public IP resource to be used for the application gateway.
-$publicip = New-AzPublicIpAddress -ResourceGroupName $resourcegroupName -Name 'publicIP01' `-Location $deploymentLocation -AllocationMethod Dynamic
+$publicip = New-AzPublicIpAddress -ResourceGroupName $resourcegroupName `
+-Name 'appgwpublicIP01' -Location $deploymentLocation `
+-AllocationMethod Static -Sku Standard
 
 #Create an application gateway IP configuration.
 $gipconfig = New-AzApplicationGatewayIPConfiguration -Name 'gwconfig' -Subnet $gwSubnet
@@ -62,27 +64,16 @@ $listener = New-AzApplicationGatewayHttpListener `
 $trustedRootCert01 = New-AzApplicationGatewayTrustedRootCertificate `
 -Name "CustomCARoot" -CertificateFile  "C:\DevApplications\ZeroTrust-Networking-E2E-Tls-AppGateway\customrootCA.cer"
 
-#Create the health probe
-$probe=New-AzApplicationGatewayProbeConfig `
-  -Name httpsbackendporbe `
-  -Protocol Https `
-  -HostName $hostName `
-  -Path "/" `
-  -Interval 15 `
-  -Timeout 20 `
-  -UnhealthyThreshold 3
-
 #Configure the HTTP settings for the application gateway back end. Assign the certificate uploaded in the preceding step to the HTTP settings.
-$poolSetting01 = New-AzApplicationGatewayBackendHttpSettings `
--Name “setting01” -Port 443 -Protocol Https `
+$poolSetting = New-AzApplicationGatewayBackendHttpSettings `
+-Name “backendsetting01” -Port 443 -Protocol Https `
 -CookieBasedAffinity Disabled -TrustedRootCertificate $trustedRootCert01 `
--HostName $hostName `
--Probe $probe
+-HostName $hostName
 
 #Create a load-balancer routing rule that configures the load balancer behavior. In this example, a basic round-robin rule is created.
-$rule = New-AzApplicationGatewayRequestRoutingRule -Name 'routehttpstraffic' `
+$httpsRequestRule01 = New-AzApplicationGatewayRequestRoutingRule -Name 'routehttpstraffic001' `
 -RuleType basic -BackendHttpSettings $poolSetting `
--HttpListener $listener -BackendAddressPool $pool
+-HttpListener $listener -BackendAddressPool $pool -Priority 100
 
 #Configure the instance size of the application gateway
 $sku = New-AzApplicationGatewaySku -Name Standard_v2 -Tier Standard_v2 -Capacity 2
@@ -98,12 +89,22 @@ $appgw = New-AzApplicationGateway -Name appgateway `
 -ResourceGroupName $resourcegroupName `
 -Location $deploymentLocation `
 -BackendAddressPools $pool `
--BackendHttpSettingsCollection $poolSetting01 `
+-BackendHttpSettingsCollection $poolSetting `
 -FrontendIpConfigurations $fipconfig `
 -GatewayIpConfigurations $gipconfig `
 -FrontendPorts $fp `
 -HttpListeners $listener `
--RequestRoutingRules $rule `
+-RequestRoutingRules $httpsRequestRule01 `
 -Sku $sku `
 -SSLPolicy $SSLPolicy `
 -TrustedRootCertificate $trustedRootCert01 -Verbose
+
+#Set the health probe for https backends
+$probe=Set-AzApplicationGatewayProbeConfig -ApplicationGateway $appgw `
+  -Name httpsbackendprobe `
+  -Protocol Https `
+  -HostName $hostName `
+  -Path "/" `
+  -Interval 15 `
+  -Timeout 20 `
+  -UnhealthyThreshold 3

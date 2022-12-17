@@ -23,3 +23,6 @@ openssl x509 -req -in contoso.csr -CA  customrootCA.crt -CAkey customrootCA.key 
 #Verify the newly created certificate
 # Use the following command to print the output of the CRT file and verify its content:
 openssl x509 -in contoso.crt -text -noout
+
+#export the server certs to pfx format (if the server does not support the import of crt and key files separately)
+openssl pkcs12 -export -out contoso.pfx -in contoso.crt -inkey contoso.key -passout pass:contosotlssecret#12
