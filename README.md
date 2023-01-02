@@ -9,7 +9,7 @@ The following diagram has been prepared based on the diagram available at the fo
 - Application gateway being a L7 load balancer and a reverse proxy, terminates the TLS connection with the client
 - As we have designed the connection to be TLS end to end, the application gateway now needs to establish a new/separate TLS connection with the backend server
 - The backend server has a TLS certificate installed and added to the default website (CN= contoso.com) signed by the same custom rootCA 
-- In this part of the connection, the application gateway acts as the client and the workload machines acts as the server
+- In this part of the connection, the application gateway acts as the client and the workload machine acts as the server
   - For the application gateway to successfully establish a TLS connection with the server, the server's CA signing certificate has to be added to the backend HTTP settings of the app gateway. This configuration instructs the app gateway to trust the server's TLS certificate
   - Note: This step is not required if the backend's certificate is signed by a well-known CA such as Verisign. The same is applicable to Azure services such as app services too
 - The backend server uses the established TLS connection to respond back to the appgw
