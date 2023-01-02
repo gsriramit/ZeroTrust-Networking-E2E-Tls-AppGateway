@@ -69,5 +69,8 @@ https://support.comodo.com/index.php?/Knowledgebase/Article/View/361/17/how-do-i
 ## Note:
 Since contoso.com is not a publicly available domain, the DNS resolution of the same cannot happen at the public authoritative DNS servers or the Azure public DNS zone (if the management of the DNS has been delegated to the Azure public DNS zones). So, the mapping of the application gateway's public IP address to the domain name, i.e. contoso.com has to be done in the client's hosts file (<sysdrive>:\Windows\System32\drivers\etc\hosts in windows). This way, the client would still be able to send the requests to the application gateway even when the requests are sent to https://contoso.com  
 example:  
-**20.237.194.223 contoso.com**
-
+**20.237.194.223 contoso.com**  
+  
+## Future Work
+*Designing end-to-end TLS for workloads that run on AKS pods using Application gateway Inress Controller (AGIC)*  
+**Note**: In this case the CA certificate that is added to the backend HTTP settings should be the certificate of the authority that signed the TLS certificates of the workload pods 
