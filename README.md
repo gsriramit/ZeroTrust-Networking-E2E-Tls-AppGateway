@@ -1,7 +1,40 @@
-## Reference HLA Diagram
-The following diagram has been prepared after modifying the base diagram available at the following docs page
+## Architecture Diagram
+The following diagram has been prepared based on the diagram available at the following MS docs page
 [How an Application Gateway Works](https://learn.microsoft.com/en-us/azure/application-gateway/how-application-gateway-works)
-![NetworkSecurityNinja - Appgw-e2e-tls](https://user-images.githubusercontent.com/13979783/209676455-c92468b8-e518-4470-a499-16aec5173ea1.png)
+![NetworkSecurityNinja - Appgw-e2e-tls (1)](https://user-images.githubusercontent.com/13979783/210236943-50d515e4-f425-40c1-a57b-ded9f6e0dede.png)
+
+### TLS Flow
+- A TLS certificate signed by a custom rootCA is attached to the Application gateway's listener. The Listener has a frontend IP configuration consisting of the public IP and listening on port 443
+- The client successfully establishes a TLS connection with the application gateway (only after the client accepts to proceed with the unverified connection. This has been detailed in the NOTES section)
+- Application gateway being a L7 load balancer and a reverse proxy, terminates the TLS connection with the client
+- As we have designed the connection to be TLS end to end, the application gateway now needs to establish a new/separate TLS connection with the backend server
+- The backend server has a TLS certificate installed and added to the default website (CN= contoso.com) signed by the same custom rootCA 
+- In this part of the connection, the application gateway acts as the client and the workload machines acts as the server
+  - For the application gateway to successfully establish a TLS connection with the server, the server's CA signing certificate has to be added to the backend HTTP settings of the app gateway. This configuration instructs the app gateway to trust the server's TLS certificate
+  - Note: This step is not required if the backend's certificate is signed by a well-known CA such as Verisign. The same is applicable to Azure services such as app services too
+- The backend server uses the established TLS connection to respond back to the appgw
+- The appgw then terminates the TLS connection with the server and establishes a TLS connection with the client (browser)
+
+### Network Flow
+
+1. The client starts the connection to the public IP address of the Azure Application Gateway:
+   - Source IP address: ClientPIP
+   - Destination IP address: AppGwPIP
+2. The request to the Application Gateway public IP is distributed to a back-end instance of the gateway, in this case 10.0.0.7. The Application Gateway instance that receives the request stops the connection from the client, and establishes a new connection with one of the back ends. The back end sees the Application Gateway instance as the source IP address. The Application Gateway inserts an X-Forwarded-For HTTP header with the original client IP address.
+   - Source IP address: 10.0.0.7 (the private IP address of the Application Gateway instance)
+   - Destination IP address: 10.0.2.4
+   - X-Forwarded-For header: ClientPIP
+3. The VM answers the application request, reversing source and destination IP addresses. The VM already knows how to reach the Application Gateway, so doesn't need a UDR.
+   - Source IP address: 10.0.2.4
+   - Destination IP address: 10.0.0.7
+4. Finally, the Application Gateway instance answers the client:
+   - Source IP address: AppGwPIP
+   - Destination IP address: ClientPIP  
+Azure Application Gateway adds metadata to the packet HTTP headers, such as the **X-Forwarded-For** header containing the original client's IP address. Some application servers need the source client IP address to serve geolocation-specific content, or for logging. For more information, see How an application gateway works.  
+
+The IP address 10.0.0.7 is one of the instances the Azure Application Gateway service deploys under the covers, here with the internal, private front-end IP address 10.0.0.4. These individual instances are normally invisible to the Azure administrator. But noticing the difference is useful in some cases, such as when troubleshooting network issues.  
+
+The flow is similar if the client comes from an on-premises network over a VPN or ExpressRoute gateway. The difference is the client accesses the private IP address of the Application Gateway instead of the public address.  
 
 ## Deployment Instructions
 - Run the CreateTLSCertificates.sh to generate the TLS files for the application gateway and the backend server. Please note that this script will create all the certificates in the local machine from where the script is run from
@@ -12,6 +45,10 @@ The following diagram has been prepared after modifying the base diagram availab
   - The certificates could also be read from the keyvault (using the managed identity of the VM being deployed) and installed in the certificate store. This process could be completed as a part of the post deployment automation script
 
 ## Implementation References
+
+Network Architecture & packet flow with Application Gateway and a backend server  
+https://learn.microsoft.com/en-us/azure/architecture/example-scenario/gateway/firewall-application-gateway#architecture-1
+
 End-to-End TLS Encryption in the app gateway setup
 https://learn.microsoft.com/en-us/azure/application-gateway/ssl-overview#end-to-end-tls-encryption
 
